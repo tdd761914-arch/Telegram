@@ -1,0 +1,77 @@
+name: Build RedoGram release APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: redogram-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    name: Universal release APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.10.2.4988404"
+
+      - name: Build universal release APK
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew :TMessagesProj_App:assembleAfatRelease \
+            --no-daemon \
+            --stacktrace \
+            --max-workers=2
+
+      - name: Verify and stage APK
+        id: apk
+        shell: bash
+        run: |
+          apk_path="$(find TMessagesProj_App/build/outputs/apk -type f -name app.apk -path '*/afat/release/*' -print -quit)"
+          test -n "$apk_path"
+
+          application_id="$(apkanalyzer manifest application-id "$apk_path")"
+          test "$application_id" = "com.redogram.messenger"
+
+          mkdir -p artifacts
+          cp "$apk_path" artifacts/RedoGram-12.9.0-release.apk
+          sha256sum artifacts/RedoGram-12.9.0-release.apk > artifacts/RedoGram-12.9.0-release.apk.sha256
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: RedoGram-12.9.0-release
+          path: artifacts/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
