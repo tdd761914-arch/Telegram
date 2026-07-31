@@ -345,6 +345,7 @@ public class ApplicationLoader extends Application {
 
         LauncherIconController.tryFixLauncherIconIfNeeded();
         ProxyRotationController.init();
+        WhitelistBypassManager.recoverAfterProcessRestart();
     }
 
     public static void startPushService() {

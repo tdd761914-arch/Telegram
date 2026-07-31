@@ -36,6 +36,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SaveToGallerySettingsHelper;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.StatsController;
+import org.telegram.messenger.WhitelistBypassManager;
 import org.telegram.messenger.voip.Instance;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -100,6 +101,8 @@ public class DataSettingsActivity extends BaseFragment {
     private int proxySectionRow;
     @Keep
     private int proxyRow;
+    @Keep
+    private int whitelistBypassRow;
     private int proxySection2Row;
     @Keep
     private int clearDraftsRow;
@@ -196,6 +199,7 @@ public class DataSettingsActivity extends BaseFragment {
         callsSection2Row = rowCount++;
         proxySectionRow = rowCount++;
         proxyRow = rowCount++;
+        whitelistBypassRow = rowCount++;
         proxySection2Row = rowCount++;
         clearDraftsRow = rowCount++;
         clearDraftsSectionRow = rowCount++;
@@ -550,6 +554,8 @@ public class DataSettingsActivity extends BaseFragment {
                 showDialog(builder.create());
             } else if (position == proxyRow) {
                 presentFragment(new ProxyListActivity());
+            } else if (position == whitelistBypassRow) {
+                presentFragment(new WhitelistBypassActivity());
             } else if (position == enableStreamRow) {
                 SharedConfig.toggleStreamMedia();
                 TextCheckCell textCheckCell = (TextCheckCell) view;
@@ -714,7 +720,15 @@ public class DataSettingsActivity extends BaseFragment {
                         updateVoipUseLessData = false;
                     } else if (position == proxyRow) {
                         textCell.setIcon(0);
-                        textCell.setText(LocaleController.getString(R.string.ProxySettings), false);
+                        textCell.setText(LocaleController.getString(R.string.ProxySettings), true);
+                    } else if (position == whitelistBypassRow) {
+                        textCell.setIcon(0);
+                        String value = WhitelistBypassManager.isConnected()
+                                ? LocaleController.getString(R.string.WhitelistBypassStatusConnected)
+                                : WhitelistBypassManager.isEnabled()
+                                ? LocaleController.getString(R.string.WhitelistBypassStatusConnecting)
+                                : LocaleController.getString(R.string.WhitelistBypassStatusOff);
+                        textCell.setTextAndValue(LocaleController.getString(R.string.WhitelistBypassTitle), value, false);
                     } else if (position == resetDownloadRow) {
                         textCell.setIcon(0);
                         textCell.setCanDisable(true);
@@ -883,7 +897,7 @@ public class DataSettingsActivity extends BaseFragment {
         }
 
         public boolean isRowEnabled(int position) {
-            return position == mobileRow || position == roamingRow || position == wifiRow || position == storageUsageRow || position == useLessDataForCallsRow || position == dataUsageRow || position == proxyRow || position == clearDraftsRow ||
+            return position == mobileRow || position == roamingRow || position == wifiRow || position == storageUsageRow || position == useLessDataForCallsRow || position == dataUsageRow || position == proxyRow || position == whitelistBypassRow || position == clearDraftsRow ||
                     position == enableCacheStreamRow || position == enableStreamRow || position == enableAllStreamRow || position == enableMkvRow || position == quickRepliesRow || position == autoplayVideoRow || position == autoplayGifsRow ||
                     position == storageNumRow || position == saveToGalleryGroupsRow || position == saveToGalleryPeerRow || position == saveToGalleryChannelsRow || position == resetDownloadRow;
         }
