@@ -477,7 +477,7 @@ public class WebProxyCarrier {
                 if (frame.payload.length != 0) {
                     return false;
                 }
-                failStream(stream);
+                failStream(stream, true);
                 return true;
             }
             default:
@@ -760,15 +760,15 @@ public class WebProxyCarrier {
         if (closing) {
             return;
         }
+        if (adopted && !failed) {
+            evaluate("window.TelegramWebProxy && window.TelegramWebProxy.receiveControl(0,'{\"t\":\"close\"}')");
+        }
         closing = true;
         handler.removeCallbacks(handshakeTimeoutRunnable);
         handler.removeCallbacks(healthTimeoutRunnable);
         handler.removeCallbacks(writeTimeoutRunnable);
         handler.removeCallbacks(windowFlushRunnable);
         handler.removeCallbacks(probeRunnable);
-        if (adopted && !failed) {
-            evaluate("window.TelegramWebProxy && window.TelegramWebProxy.receiveControl(0,'{\"t\":\"close\"}')");
-        }
         destroyWebview();
     }
 

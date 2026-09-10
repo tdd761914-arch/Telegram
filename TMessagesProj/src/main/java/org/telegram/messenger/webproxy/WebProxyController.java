@@ -147,7 +147,8 @@ public class WebProxyController implements WebProxyCarrier.Callbacks {
         boolean paramsChanged = paramsChanged(host, capability);
         if (paramsChanged) {
             restartCarrier(host, capability);
-        } else if (carrier == null && !startScheduled) {
+        }
+        if (carrier == null && !startScheduled) {
             maybeStartCarrier();
         }
         Set<Integer> set = registeredStreams.get(instance);
