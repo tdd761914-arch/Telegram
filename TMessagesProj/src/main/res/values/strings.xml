@@ -2685,6 +2685,16 @@
     <string name="UseProxyPort">Port</string>
     <string name="UseProxySecret">Secret</string>
     <string name="UseProxySecretError">Enter a valid proxy secret.</string>
+    <string name="ImportProxyList">Import proxy list (JSON)</string>
+    <string name="ImportFromUrl">From URL</string>
+    <string name="ImportFromFile">From file</string>
+    <string name="ImportProxyListUrlHint">https://example.com/proxies.json</string>
+    <string name="ImportProxyListDone">Added %1$d proxies and %2$d bypass links (%3$d skipped)</string>
+    <string name="ImportProxyListNothing">Nothing to import</string>
+    <string name="ImportProxyListFailed">Import failed</string>
+    <string name="WhitelistBypassSavedLinks">Saved links</string>
+    <string name="WhitelistBypassSavedLinksEmpty">No saved bypass links yet. Import them from a proxy list.</string>
+    <string name="WhitelistBypassSavedLinksClear">Remove %1$d saved links?</string>
     <string name="UseProxyUsername">Username</string>
     <string name="UseProxySocks5">SOCKS5 Proxy</string>
     <string name="UseProxyTelegram">MTProto Proxy</string>

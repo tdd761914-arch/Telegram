@@ -46,6 +46,7 @@ import androidx.core.graphics.ColorUtils;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.ProxyListImporter;
 import org.telegram.messenger.webproxy.WebProxyController;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.messenger.NotificationCenter;
@@ -56,6 +57,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
@@ -63,6 +65,11 @@ import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.RadioCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
+
+import java.io.InputStream;
+import android.app.Activity;
+import android.content.Intent;
+import org.telegram.messenger.FileLog;
 import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EditTextBoldCursor;
@@ -578,6 +585,13 @@ public class ProxySettingsActivity extends BaseFragment {
             showDialog(alert);
         });
 
+        TextSettingsCell importCell = new TextSettingsCell(context);
+        importCell.setBackground(Theme.getSelectorDrawable(true));
+        importCell.setText(LocaleController.getString(R.string.ImportProxyList), false);
+        importCell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+        importCell.setOnClickListener(v -> showImportListDialog());
+        linearLayout2.addView(importCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
         sectionCell[1] = new ShadowSectionCell(context);
         sectionCell[1].setBackgroundDrawable(Theme.getThemedDrawableByKey(context, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
         linearLayout2.addView(sectionCell[1], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -729,6 +743,111 @@ public class ProxySettingsActivity extends BaseFragment {
 
     private void setProxyType(int type, boolean animated) {
         setProxyType(type, animated, null);
+    }
+
+    private void showImportListDialog() {
+        Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(LocaleController.getString(R.string.ImportProxyList))
+                .setItems(new CharSequence[]{
+                        LocaleController.getString(R.string.ImportFromUrl),
+                        LocaleController.getString(R.string.ImportFromFile)
+                }, (dialog, which) -> {
+                    if (which == 0) {
+                        showImportUrlDialog();
+                    } else {
+                        openImportFilePicker();
+                    }
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .show();
+    }
+
+    private void showImportUrlDialog() {
+        Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        FrameLayout container = new FrameLayout(context);
+        int padding = AndroidUtilities.dp(20);
+        EditTextBoldCursor field = new EditTextBoldCursor(context);
+        field.setHint(LocaleController.getString(R.string.ImportProxyListUrlHint));
+        field.setTextSize(17);
+        field.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        field.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));
+        field.setBackgroundDrawable(null);
+        container.addView(field, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, padding, padding / 2, padding, 8));
+        AlertDialog dialog = new AlertDialog.Builder(context)
+                .setTitle(LocaleController.getString(R.string.ImportFromUrl))
+                .setView(container)
+                .setPositiveButton(LocaleController.getString(R.string.Import), (d, w) -> {
+                    String value = field.getText().toString();
+                    importListFromUrl(value);
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .create();
+        dialog.show();
+        field.requestFocus();
+        AndroidUtilities.showKeyboard(field);
+    }
+
+    private void importListFromUrl(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return;
+        }
+        ProxyListImporter.importFromUrl(url.trim(), this::showImportResult);
+    }
+
+    private void openImportFilePicker() {
+        Context context = getParentActivity();
+        if (context == null) {
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            startActivityForResult(intent, 4711);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode == 4711 && resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
+            try {
+                InputStream stream = getParentActivity().getContentResolver().openInputStream(data.getData());
+                if (stream != null) {
+                    ProxyListImporter.importFromStream(stream, this::showImportResult);
+                }
+            } catch (Exception e) {
+                FileLog.e(e);
+                BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ImportProxyListFailed)).show();
+            }
+        }
+    }
+
+    private void showImportResult(ProxyListImporter.Result result, String error) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        if (error != null) {
+            BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ImportProxyListFailed)).show();
+            return;
+        }
+        if (result == null || result.totalAdded() == 0) {
+            BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ImportProxyListNothing)).show();
+            return;
+        }
+        BulletinFactory.of(this).createSimpleBulletin(
+                R.raw.done,
+                LocaleController.formatString("ImportProxyListDone", R.string.ImportProxyListDone,
+                        result.proxiesAdded, result.linksAdded, result.totalSkipped() + result.totalInvalid())
+        ).show();
     }
 
     private void setProxyType(int type, boolean animated, Runnable onTransitionEnd) {

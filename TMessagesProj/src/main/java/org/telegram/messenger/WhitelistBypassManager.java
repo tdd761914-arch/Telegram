@@ -41,6 +41,7 @@ public final class WhitelistBypassManager {
     private static final String PREFS = "whitelist_bypass";
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_LINK = "creator_link";
+    private static final String KEY_SAVED_LINKS = "saved_links";
     private static final String KEY_NAME = "display_name";
     private static final String KEY_MODE = "tunnel_mode";
     private static final String KEY_INTERNAL_PORT = "internal_port";
@@ -89,6 +90,66 @@ public final class WhitelistBypassManager {
                 .putString(KEY_NAME, TextUtils.isEmpty(displayName) ? "RedoGram" : displayName.trim())
                 .putString(KEY_MODE, MODE_DC.equals(tunnelMode) ? MODE_DC : MODE_VIDEO)
                 .apply();
+    }
+
+    public static ArrayList<String> getSavedLinks() {
+        ArrayList<String> links = new ArrayList<>();
+        String raw = preferences().getString(KEY_SAVED_LINKS, "");
+        if (!TextUtils.isEmpty(raw)) {
+            try {
+                org.json.JSONArray array = new org.json.JSONArray(raw);
+                for (int i = 0; i < array.length(); i++) {
+                    String link = array.optString(i, null);
+                    if (!TextUtils.isEmpty(link)) {
+                        links.add(link);
+                    }
+                }
+            } catch (Exception ignore) {
+            }
+        }
+        return links;
+    }
+
+    public static boolean addSavedLink(String link) {
+        if (link == null || validateCreatorLink(link) != null) {
+            return false;
+        }
+        link = link.trim();
+        ArrayList<String> links = getSavedLinks();
+        for (String existing : links) {
+            if (existing.trim().equalsIgnoreCase(link)) {
+                return false;
+            }
+        }
+        links.add(link);
+        saveSavedLinks(links);
+        return true;
+    }
+
+    public static boolean removeSavedLink(String link) {
+        if (TextUtils.isEmpty(link)) {
+            return false;
+        }
+        ArrayList<String> links = getSavedLinks();
+        boolean changed = false;
+        for (String existing : new ArrayList<>(links)) {
+            if (existing.trim().equalsIgnoreCase(link.trim())) {
+                links.remove(existing);
+                changed = true;
+            }
+        }
+        if (changed) {
+            saveSavedLinks(links);
+        }
+        return changed;
+    }
+
+    private static void saveSavedLinks(ArrayList<String> links) {
+        org.json.JSONArray array = new org.json.JSONArray();
+        for (String link : links) {
+            array.put(link);
+        }
+        preferences().edit().putString(KEY_SAVED_LINKS, array.toString()).apply();
     }
 
     public static boolean isEnabled() {

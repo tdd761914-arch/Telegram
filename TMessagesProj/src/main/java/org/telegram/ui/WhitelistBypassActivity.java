@@ -39,8 +39,11 @@ import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.TextSettingsCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
+
+import java.util.ArrayList;
 
 public class WhitelistBypassActivity extends BaseFragment implements WhitelistBypassManager.Listener {
 
@@ -108,6 +111,17 @@ public class WhitelistBypassActivity extends BaseFragment implements WhitelistBy
         pasteCell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
         pasteCell.setOnClickListener(v -> pasteCreatorLink(context));
         content.addView(pasteCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        TextSettingsCell savedLinksCell = new TextSettingsCell(context);
+        savedLinksCell.setBackground(Theme.getSelectorDrawable(true));
+        savedLinksCell.setText(LocaleController.getString(R.string.WhitelistBypassSavedLinks), false);
+        savedLinksCell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+        savedLinksCell.setOnClickListener(v -> showSavedLinksDialog(context));
+        savedLinksCell.setOnLongClickListener(v -> {
+            clearSavedLinks(context);
+            return true;
+        });
+        content.addView(savedLinksCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         content.addView(createShadow(context), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
@@ -282,6 +296,45 @@ public class WhitelistBypassActivity extends BaseFragment implements WhitelistBy
             linkField.setText(value.toString().trim());
             linkField.setSelection(linkField.length());
         }
+    }
+
+    private void showSavedLinksDialog(Context context) {
+        ArrayList<String> links = WhitelistBypassManager.getSavedLinks();
+        if (links.isEmpty()) {
+            BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.WhitelistBypassSavedLinksEmpty)).show();
+            return;
+        }
+        CharSequence[] items = new CharSequence[links.size()];
+        for (int i = 0; i < links.size(); i++) {
+            String link = links.get(i);
+            items[i] = link.length() > 64 ? link.substring(0, 61) + "…" : link;
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(LocaleController.getString(R.string.WhitelistBypassSavedLinks))
+                .setItems(items, (dialog, which) -> {
+                    String link = links.get(which);
+                    linkField.setText(link);
+                    linkField.setSelection(linkField.length());
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .show();
+    }
+
+    private void clearSavedLinks(Context context) {
+        ArrayList<String> links = WhitelistBypassManager.getSavedLinks();
+        if (links.isEmpty()) {
+            return;
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(LocaleController.getString(R.string.WhitelistBypassSavedLinks))
+                .setMessage(LocaleController.formatString("WhitelistBypassSavedLinksClear", R.string.WhitelistBypassSavedLinksClear, links.size()))
+                .setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) -> {
+                    for (String link : new ArrayList<>(links)) {
+                        WhitelistBypassManager.removeSavedLink(link);
+                    }
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .show();
     }
 
     private void toggleConnection(Context context) {
