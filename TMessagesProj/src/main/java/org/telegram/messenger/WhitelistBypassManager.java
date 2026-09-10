@@ -75,7 +75,7 @@ public final class WhitelistBypassManager {
     }
 
     public static String getDisplayName() {
-        return preferences().getString(KEY_NAME, "Telegram");
+        return preferences().getString(KEY_NAME, "RedoGram");
     }
 
     public static String getTunnelMode() {
@@ -86,7 +86,7 @@ public final class WhitelistBypassManager {
     public static void saveSettings(String creatorLink, String displayName, String tunnelMode) {
         preferences().edit()
                 .putString(KEY_LINK, creatorLink == null ? "" : creatorLink.trim())
-                .putString(KEY_NAME, TextUtils.isEmpty(displayName) ? "Telegram" : displayName.trim())
+                .putString(KEY_NAME, TextUtils.isEmpty(displayName) ? "RedoGram" : displayName.trim())
                 .putString(KEY_MODE, MODE_DC.equals(tunnelMode) ? MODE_DC : MODE_VIDEO)
                 .apply();
     }
