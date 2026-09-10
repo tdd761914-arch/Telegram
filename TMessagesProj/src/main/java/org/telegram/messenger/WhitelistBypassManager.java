@@ -320,6 +320,11 @@ public final class WhitelistBypassManager {
         String link = getCreatorLink().trim();
         String platform = detectPlatform(link);
         String mode = getTunnelMode();
+        // whitelist-bypass-iran uses Bale's wire name "vp8", while the
+        // original joiner uses the UI-facing name "video".
+        if ("bale".equals(platform) && MODE_VIDEO.equals(mode)) {
+            mode = "vp8";
+        }
         if (("telemost".equals(platform) || "dion".equals(platform)) && MODE_DC.equals(mode)) {
             mode = MODE_VIDEO;
         }
