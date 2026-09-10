@@ -28,7 +28,7 @@ import androidx.annotation.RequiresApi;
 import androidx.annotation.RequiresPermission;
 
 import org.telegram.PhoneFormat.PhoneFormat;
-import org.telegram.messenger.web.R;
+import org.telegram.messenger.R;
 import org.telegram.tgnet.AbstractSerializedData;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.InputSerializedData;

@@ -50,6 +50,10 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
@@ -703,6 +707,18 @@
         -->
 
         <meta-data android:name="com.google.android.gms.vision.DEPENDENCIES" android:value="face,barcode" />
+
+        <receiver
+            android:name="org.telegram.messenger.SMSResultService"
+            android:exported="false">
+        </receiver>
+
+        <service
+            android:name="org.telegram.messenger.SMSJobsNotification"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="dataSync|remoteMessaging"
+        />
 
         <meta-data android:name="android.max_aspect" android:value="2.5" />
         <meta-data

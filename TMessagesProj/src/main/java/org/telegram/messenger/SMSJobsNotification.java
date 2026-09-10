@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.ServiceCompat;
 
-import org.telegram.messenger.web.R;
+import org.telegram.messenger.R;
 import org.telegram.tgnet.TL_smsjobs;
 import org.telegram.ui.LaunchActivity;
 
