@@ -125,6 +125,14 @@ private:
     bool hasPendingRequestsForConnection(Connection *connection);
     void attachConnection(ConnectionSocket *connection);
     void detachConnection(ConnectionSocket *connection);
+
+    uint32_t nextWebProxyStreamId();
+    void registerWebProxyStream(uint32_t streamId, ConnectionSocket *socket);
+    void unregisterWebProxyStream(uint32_t streamId, ConnectionSocket *socket);
+    void onWebProxyConnected(uint32_t streamId);
+    void deliverWebProxyData(uint32_t streamId, const uint8_t *data, size_t length);
+    void webProxyFailed(uint32_t streamId);
+    void stopWebProxy();
     TLObject *TLdeserialize(TLObject *request, uint32_t bytes, NativeByteBuffer *data);
     TLObject *getRequestWithMessageId(int64_t messageId);
     void onDatacenterHandshakeComplete(Datacenter *datacenter, HandshakeType type, int32_t timeDiff);
@@ -209,6 +217,8 @@ private:
     bool lastProtocolUsefullData = false;
     std::vector<ConnectionSocket *> activeConnections;
     std::vector<ConnectionSocket *> activeConnectionsCopy;
+    std::map<uint32_t, ConnectionSocket *> webProxyConnections;
+    std::atomic<uint32_t> webProxyStreamCounter{1000000};
     int epolFd;
     int eventFd;
     int *pipeFd = nullptr;

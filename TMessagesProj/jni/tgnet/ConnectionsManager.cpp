@@ -1887,6 +1887,62 @@ void ConnectionsManager::detachConnection(ConnectionSocket *connection) {
     }
 }
 
+uint32_t ConnectionsManager::nextWebProxyStreamId() {
+    return webProxyStreamCounter.fetch_add(1);
+}
+
+void ConnectionsManager::registerWebProxyStream(uint32_t streamId, ConnectionSocket *socket) {
+    webProxyConnections[streamId] = socket;
+}
+
+void ConnectionsManager::unregisterWebProxyStream(uint32_t streamId, ConnectionSocket *socket) {
+    auto iter = webProxyConnections.find(streamId);
+    if (iter != webProxyConnections.end() && iter->second == socket) {
+        webProxyConnections.erase(iter);
+    }
+}
+
+void ConnectionsManager::onWebProxyConnected(uint32_t streamId) {
+    scheduleTask([this, streamId] {
+        auto iter = webProxyConnections.find(streamId);
+        if (iter != webProxyConnections.end()) {
+            iter->second->webProxyConnected();
+        }
+    });
+}
+
+void ConnectionsManager::deliverWebProxyData(uint32_t streamId, const uint8_t *data, size_t length) {
+    std::string copy((const char *) data, length);
+    scheduleTask([this, streamId, copy] {
+        auto iter = webProxyConnections.find(streamId);
+        if (iter != webProxyConnections.end()) {
+            iter->second->deliverWebProxyData((const uint8_t *) copy.data(), copy.size());
+        }
+    });
+}
+
+void ConnectionsManager::webProxyFailed(uint32_t streamId) {
+    scheduleTask([this, streamId] {
+        auto iter = webProxyConnections.find(streamId);
+        if (iter != webProxyConnections.end()) {
+            iter->second->closeSocket(1, -1);
+        }
+    });
+}
+
+void ConnectionsManager::stopWebProxy() {
+    scheduleTask([this] {
+        std::vector<ConnectionSocket *> sockets;
+        for (auto &entry : webProxyConnections) {
+            entry.second->webProxyStopped = true;
+            sockets.push_back(entry.second);
+        }
+        for (auto socket : sockets) {
+            socket->closeSocket(1, -1);
+        }
+    });
+}
+
 int32_t ConnectionsManager::sendRequestInternal(TLObject *object, onCompleteFunc onComplete, onQuickAckFunc onQuickAck, onRequestClearFunc onClear, uint32_t flags, uint32_t datacenterId, ConnectionType connectionType, bool immediate) {
     auto request = new Request(instanceNum, lastRequestToken++, connectionType, flags, datacenterId, onComplete, onQuickAck, nullptr, onClear);
     request->rawRequest = object;
@@ -3708,6 +3764,8 @@ void ConnectionsManager::init(uint32_t version, int32_t layer, int32_t apiId, st
 void ConnectionsManager::setProxySettings(std::string address, uint16_t port, std::string username, std::string password, std::string secret) {
     scheduleTask([&, address, port, username, password, secret] {
         std::string newSecret = decodeSecret(secret);
+        bool oldWasWeb = !proxySecret.empty() && proxySecret[0] == '\xf0';
+        bool newIsWeb = !address.empty() && !newSecret.empty() && newSecret[0] == '\xf0';
         bool secretChanged = proxySecret != newSecret;
         bool reconnect = proxyAddress != address || proxyPort != port || username != proxyUser || proxyPassword != password || secretChanged;
         proxyAddress = address;
@@ -3715,6 +3773,12 @@ void ConnectionsManager::setProxySettings(std::string address, uint16_t port, st
         proxyUser = username;
         proxyPassword = password;
         proxySecret = std::move(newSecret);
+        if (oldWasWeb && (!newIsWeb || secretChanged)) {
+            stopWebProxy();
+            if (delegate != nullptr) {
+                delegate->stopWebProxy(instanceNum);
+            }
+        }
         if (!proxyAddress.empty() && connectionState == ConnectionStateConnecting) {
             connectionState = ConnectionStateConnectingViaProxy;
             if (delegate != nullptr) {

@@ -34,6 +34,8 @@ public:
     void dropConnection();
     void setOverrideProxy(std::string address, uint16_t port, std::string username, std::string password, std::string secret);
     void onHostNameResolved(std::string host, std::string ip, bool ipv6);
+    void webProxyConnected();
+    void deliverWebProxyData(const uint8_t *data, size_t length);
 
 protected:
     int32_t instanceNum;
@@ -81,6 +83,15 @@ private:
     int8_t tlsState = 0;
 
     uint8_t proxyAuthState;
+
+    bool webProxyMode = false;
+    bool webProxyStopped = false;
+    uint32_t webProxyStreamId = 0;
+    std::string webProxyHost;
+    std::string webProxyKey;
+
+    void startWebProxyConnection(std::string *proxyAddress, std::string *proxySecret);
+    void pumpWebProxyOutbound();
 
     int32_t checkSocketError(int32_t *error);
     void closeSocket(int32_t reason, int32_t error);

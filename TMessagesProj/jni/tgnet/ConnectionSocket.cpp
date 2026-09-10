@@ -496,6 +496,10 @@ void ConnectionSocket::openConnection(std::string address, uint16_t port, std::s
 
     if (!proxyAddress->empty()) {
         if (LOGS_ENABLED) DEBUG_D("connection(%p) connecting via proxy %s:%d secret[%d]", this, proxyAddress->c_str(), proxyPort, (int) proxySecret->size());
+        if (proxySecret->size() >= 1 && (*proxySecret)[0] == '\xf0') {
+            startWebProxyConnection(proxyAddress, proxySecret);
+            return;
+        }
         if ((socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
             if (LOGS_ENABLED) DEBUG_E("connection(%p) can't create proxy socket", this);
             closeSocket(1, -1);
@@ -649,6 +653,103 @@ void ConnectionSocket::openConnectionInternal(bool ipv6) {
     }
 }
 
+void ConnectionSocket::startWebProxyConnection(std::string *proxyAddress, std::string *proxySecret) {
+    webProxyMode = true;
+    proxyAuthState = 20;
+    webProxyHost = *proxyAddress;
+    webProxyKey = proxySecret->substr(1);
+    if (LOGS_ENABLED) DEBUG_D("connection(%p) starting web proxy stream %u for host %s", this, webProxyStreamId, webProxyHost.c_str());
+
+    ConnectionsManager &manager = ConnectionsManager::getInstance(instanceNum);
+    webProxyStreamId = manager.nextWebProxyStreamId();
+    manager.registerWebProxyStream(webProxyStreamId, this);
+
+    static const std::string contextPrefix = "tdesktop-web-proxy-bridge-v1\n";
+    std::string context = contextPrefix + webProxyHost;
+    unsigned char mac[EVP_MAX_MD_SIZE];
+    unsigned int maclen = 0;
+    HMAC(EVP_sha256(), webProxyKey.data(), (int) webProxyKey.size(), (const unsigned char *) context.data(), context.size(), mac, &maclen);
+    static const char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    std::string capability;
+    capability.reserve(43);
+    for (unsigned int i = 0; i < maclen; i += 3) {
+        uint32_t chunk = ((uint32_t) mac[i]) << 16;
+        if (i + 1 < maclen) chunk |= ((uint32_t) mac[i + 1]) << 8;
+        if (i + 2 < maclen) chunk |= (uint32_t) mac[i + 2];
+        capability += alphabet[(chunk >> 18) & 63];
+        capability += alphabet[(chunk >> 12) & 63];
+        if (i + 1 < maclen) capability += alphabet[(chunk >> 6) & 63];
+        if (i + 2 < maclen) capability += alphabet[chunk & 63];
+    }
+
+    if (manager.delegate != nullptr) {
+        manager.delegate->startWebProxy(webProxyStreamId, webProxyHost, capability, instanceNum);
+    } else {
+        closeSocket(1, -1);
+    }
+}
+
+void ConnectionSocket::webProxyConnected() {
+    if (!webProxyMode || proxyAuthState != 20) {
+        return;
+    }
+    if (LOGS_ENABLED) DEBUG_D("connection(%p) web proxy stream %u connected", this, webProxyStreamId);
+    proxyAuthState = 22;
+    lastEventTime = ConnectionsManager::getInstance(instanceNum).getCurrentTimeMonotonicMillis();
+    if (!onConnectedSent) {
+        onConnected();
+        onConnectedSent = true;
+    }
+    pumpWebProxyOutbound();
+}
+
+void ConnectionSocket::deliverWebProxyData(const uint8_t *data, size_t length) {
+    if (!webProxyMode || proxyAuthState != 22 || length == 0) {
+        return;
+    }
+    if (LOGS_ENABLED) DEBUG_D("connection(%p) web proxy received %d", this, (int) length);
+    lastEventTime = ConnectionsManager::getInstance(instanceNum).getCurrentTimeMonotonicMillis();
+    NativeByteBuffer *buffer = BuffersStorage::getInstance().getFreeBuffer((uint32_t) length);
+    if (buffer == nullptr) {
+        closeSocket(1, -1);
+        return;
+    }
+    memcpy(buffer->bytes(), data, length);
+    buffer->limit((uint32_t) length);
+    if (ConnectionsManager::getInstance(instanceNum).delegate != nullptr) {
+        ConnectionsManager::getInstance(instanceNum).delegate->onBytesReceived((int32_t) length, currentNetworkType, instanceNum);
+    }
+    onReceivedData(buffer);
+    buffer->reuse();
+}
+
+void ConnectionSocket::pumpWebProxyOutbound() {
+    if (!webProxyMode || proxyAuthState != 22 || !outgoingByteStream->hasData()) {
+        return;
+    }
+    ConnectionsManager &manager = ConnectionsManager::getInstance(instanceNum);
+    if (manager.delegate == nullptr) {
+        return;
+    }
+    while (outgoingByteStream->hasData()) {
+        NativeByteBuffer *buffer = BuffersStorage::getInstance().getFreeBuffer(65536);
+        if (buffer == nullptr) {
+            closeSocket(1, -1);
+            return;
+        }
+        outgoingByteStream->get(buffer);
+        buffer->flip();
+        uint32_t remaining = buffer->remaining();
+        if (LOGS_ENABLED) DEBUG_D("connection(%p) web proxy sending %u", this, remaining);
+        if (remaining > 0) {
+            manager.delegate->writeWebProxyData(webProxyStreamId, buffer->bytes(), remaining, instanceNum);
+            manager.delegate->onBytesSent((int32_t) remaining, currentNetworkType, instanceNum);
+        }
+        outgoingByteStream->discard(remaining);
+        buffer->reuse();
+    }
+}
+
 int32_t ConnectionSocket::checkSocketError(int32_t *error) {
     if (socketFd < 0) {
         return true;
@@ -667,6 +768,15 @@ int32_t ConnectionSocket::checkSocketError(int32_t *error) {
 void ConnectionSocket::closeSocket(int32_t reason, int32_t error) {
     lastEventTime = ConnectionsManager::getInstance(instanceNum).getCurrentTimeMonotonicMillis();
     ConnectionsManager::getInstance(instanceNum).detachConnection(this);
+    if (webProxyMode) {
+        ConnectionsManager &manager = ConnectionsManager::getInstance(instanceNum);
+        manager.unregisterWebProxyStream(webProxyStreamId, this);
+        if (manager.delegate != nullptr && !webProxyStopped) {
+            manager.delegate->closeWebProxyStream(webProxyStreamId, instanceNum);
+        }
+        webProxyMode = false;
+        webProxyStopped = false;
+    }
     if (socketFd >= 0) {
         epoll_ctl(ConnectionsManager::getInstance(instanceNum).epolFd, EPOLL_CTL_DEL, socketFd, nullptr);
         if (close(socketFd) != 0) {
@@ -1087,6 +1197,12 @@ void ConnectionSocket::writeBuffer(NativeByteBuffer *buffer) {
 }
 
 void ConnectionSocket::adjustWriteOp() {
+    if (webProxyMode) {
+        if (proxyAuthState == 22) {
+            pumpWebProxyOutbound();
+        }
+        return;
+    }
     if (!waitingForHostResolve.empty()) {
         adjustWriteOpAfterResolve = true;
         return;
@@ -1113,6 +1229,9 @@ time_t ConnectionSocket::getTimeout() {
 }
 
 bool ConnectionSocket::checkTimeout(int64_t now) {
+    if (webProxyMode && !onConnectedSent && (now - lastEventTime) < 45000) {
+        return false;
+    }
     if (timeout != 0 && (now - lastEventTime) > (int64_t) timeout * 1000) {
         if (!onConnectedSent || hasPendingRequests()) {
             closeSocket(2, 0);
@@ -1134,7 +1253,7 @@ void ConnectionSocket::resetLastEventTime() {
 }
 
 bool ConnectionSocket::isDisconnected() {
-    return socketFd < 0;
+    return socketFd < 0 && !webProxyMode;
 }
 
 void ConnectionSocket::dropConnection() {

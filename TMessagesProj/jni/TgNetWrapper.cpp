@@ -39,6 +39,10 @@ jmethodID jclass_ConnectionsManager_getInitFlags;
 jmethodID jclass_ConnectionsManager_onPremiumFloodWait;
 jmethodID jclass_ConnectionsManager_onIntegrityCheckClassic;
 jmethodID jclass_ConnectionsManager_onCaptchaCheck;
+jmethodID jclass_ConnectionsManager_webProxyStart;
+jmethodID jclass_ConnectionsManager_webProxyWrite;
+jmethodID jclass_ConnectionsManager_webProxyCloseStream;
+jmethodID jclass_ConnectionsManager_webProxyStop;
 
 bool check_utf8(const char *data, size_t len);
 
@@ -413,6 +417,31 @@ class Delegate : public ConnectiosManagerDelegate {
         jniEnv[instanceNum]->DeleteLocalRef(keyIdStr);
     }
 
+    void startWebProxy(uint32_t streamId, std::string host, std::string capability, int32_t instanceNum) {
+        jstring hostStr = jniEnv[instanceNum]->NewStringUTF(host.c_str());
+        jstring capStr = jniEnv[instanceNum]->NewStringUTF(capability.c_str());
+        jniEnv[instanceNum]->CallStaticVoidMethod(jclass_ConnectionsManager, jclass_ConnectionsManager_webProxyStart, (jint) streamId, hostStr, capStr, instanceNum);
+        jniEnv[instanceNum]->DeleteLocalRef(hostStr);
+        jniEnv[instanceNum]->DeleteLocalRef(capStr);
+    }
+
+    void writeWebProxyData(uint32_t streamId, const uint8_t *data, size_t length, int32_t instanceNum) {
+        jbyteArray arr = jniEnv[instanceNum]->NewByteArray((jsize) length);
+        if (arr != nullptr) {
+            jniEnv[instanceNum]->SetByteArrayRegion(arr, 0, (jsize) length, (const jbyte *) data);
+            jniEnv[instanceNum]->CallStaticVoidMethod(jclass_ConnectionsManager, jclass_ConnectionsManager_webProxyWrite, instanceNum, (jint) streamId, arr);
+            jniEnv[instanceNum]->DeleteLocalRef(arr);
+        }
+    }
+
+    void closeWebProxyStream(uint32_t streamId, int32_t instanceNum) {
+        jniEnv[instanceNum]->CallStaticVoidMethod(jclass_ConnectionsManager, jclass_ConnectionsManager_webProxyCloseStream, instanceNum, (jint) streamId);
+    }
+
+    void stopWebProxy(int32_t instanceNum) {
+        jniEnv[instanceNum]->CallStaticVoidMethod(jclass_ConnectionsManager, jclass_ConnectionsManager_webProxyStop, instanceNum);
+    }
+
 };
 
 void onHostNameResolved(JNIEnv *env, jclass c, jstring host, jlong address, jstring ip) {
@@ -432,6 +461,24 @@ void onHostNameResolved(JNIEnv *env, jclass c, jstring host, jlong address, jstr
 
 void discardConnection(JNIEnv *env, jclass c,  jint instanceNum, jint datacenerId, jint connectionType) {
     ConnectionsManager::getInstance(instanceNum).reconnect(datacenerId, connectionType);
+}
+
+void webProxyConnected(JNIEnv *env, jclass c, jint instanceNum, jint streamId) {
+    ConnectionsManager::getInstance(instanceNum).onWebProxyConnected((uint32_t) streamId);
+}
+
+void webProxyDeliver(JNIEnv *env, jclass c, jint instanceNum, jint streamId, jbyteArray data) {
+    jsize length = env->GetArrayLength(data);
+    if (length <= 0) {
+        return;
+    }
+    jbyte *bytes = env->GetByteArrayElements(data, nullptr);
+    ConnectionsManager::getInstance(instanceNum).deliverWebProxyData((uint32_t) streamId, (const uint8_t *) bytes, (size_t) length);
+    env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+}
+
+void webProxyFailed(JNIEnv *env, jclass c, jint instanceNum, jint streamId) {
+    ConnectionsManager::getInstance(instanceNum).webProxyFailed((uint32_t) streamId);
 }
 
 void setLangCode(JNIEnv *env, jclass c, jint instanceNum, jstring langCode) {
@@ -560,6 +607,9 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_receivedIntegrityCheckClassic", "(IILjava/lang/String;Ljava/lang/String;)V", (void *) receivedIntegrityCheckClassic},
         {"native_receivedCaptchaResult", "(I[ILjava/lang/String;)V", (void *) receivedCaptchaResult},
         {"native_isGoodPrime", "([BI)Z", (void *) isGoodPrime},
+        {"native_webProxyConnected", "(II)V", (void *) webProxyConnected},
+        {"native_webProxyDeliver", "(II[B)V", (void *) webProxyDeliver},
+        {"native_webProxyFail", "(II)V", (void *) webProxyFailed},
 };
 
 
@@ -690,6 +740,14 @@ extern "C" int registerNativeTgNetFunctions(JavaVM *vm, JNIEnv *env) {
     }
     jclass_ConnectionsManager_onCaptchaCheck = env->GetStaticMethodID(jclass_ConnectionsManager, "onCaptchaCheck", "(IILjava/lang/String;Ljava/lang/String;)V");
     if (jclass_ConnectionsManager_onCaptchaCheck == 0) {
+        return JNI_FALSE;
+    }
+
+    jclass_ConnectionsManager_webProxyStart = env->GetStaticMethodID(jclass_ConnectionsManager, "webProxyStart", "(ILjava/lang/String;Ljava/lang/String;I)V");
+    jclass_ConnectionsManager_webProxyWrite = env->GetStaticMethodID(jclass_ConnectionsManager, "webProxyWrite", "(II[B)V");
+    jclass_ConnectionsManager_webProxyCloseStream = env->GetStaticMethodID(jclass_ConnectionsManager, "webProxyCloseStream", "(II)V");
+    jclass_ConnectionsManager_webProxyStop = env->GetStaticMethodID(jclass_ConnectionsManager, "webProxyStop", "(I)V");
+    if (jclass_ConnectionsManager_webProxyStart == 0 || jclass_ConnectionsManager_webProxyWrite == 0 || jclass_ConnectionsManager_webProxyCloseStream == 0 || jclass_ConnectionsManager_webProxyStop == 0) {
         return JNI_FALSE;
     }
 

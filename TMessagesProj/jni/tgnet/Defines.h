@@ -156,6 +156,10 @@ typedef struct ConnectiosManagerDelegate {
     virtual void onPremiumFloodWait(int32_t instanceNum, int32_t requestToken, bool isUpload) = 0;
     virtual void onIntegrityCheckClassic(int32_t instanceNum, int32_t requestToken, std::string project, std::string nonce) = 0;
     virtual void onCaptchaCheck(int32_t instanceNum, int32_t requestToken, std::string action, std::string key_id) = 0;
+    virtual void startWebProxy(uint32_t streamId, std::string host, std::string capability, int32_t instanceNum) {}
+    virtual void writeWebProxyData(uint32_t streamId, const uint8_t *data, size_t length, int32_t instanceNum) {}
+    virtual void closeWebProxyStream(uint32_t streamId, int32_t instanceNum) {}
+    virtual void stopWebProxy(int32_t instanceNum) {}
 } ConnectiosManagerDelegate;
 
 typedef struct HandshakeDelegate {

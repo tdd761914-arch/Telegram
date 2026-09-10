@@ -2684,6 +2684,7 @@
     <string name="UseProxyPassword">Password</string>
     <string name="UseProxyPort">Port</string>
     <string name="UseProxySecret">Secret</string>
+    <string name="UseProxySecretError">Enter a valid proxy secret.</string>
     <string name="UseProxyUsername">Username</string>
     <string name="UseProxySocks5">SOCKS5 Proxy</string>
     <string name="UseProxyTelegram">MTProto Proxy</string>
@@ -2692,6 +2693,8 @@
     <string name="UseProxySponsorInfo">This channel is shown by your proxy server. To remove this channel from your chat list, disable the proxy in RedoGram Settings.</string>
     <string name="UseProxyInfo">SOCKS5 proxy settings.</string>
     <string name="UseProxyTelegramInfo">MTProto proxy settings.</string>
+    <string name="UseProxyWebProxy">WEB Proxy</string>
+    <string name="UseProxyWebProxyInfo">WEB proxy settings. Traffic is tunneled through a hidden browser page served by the proxy host.</string>
     <string name="UseProxyTelegramInfo2">This proxy may display a sponsored channel in your chat list. This doesn\'t reveal any of your RedoGram traffic.</string>
     <string name="UseProxyForCalls">Use proxy for calls</string>
     <string name="UseProxyForCallsInfo">Proxy servers may degrade the quality of your calls.</string>

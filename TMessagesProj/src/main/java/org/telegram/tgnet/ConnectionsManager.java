@@ -75,6 +75,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLException;
 
+import org.telegram.messenger.webproxy.WebProxyController;
+
 public class ConnectionsManager extends BaseController {
 
     public final static int ConnectionTypeGeneric = 1;
@@ -891,6 +893,22 @@ public class ConnectionsManager extends BaseController {
         AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needShowAlert, 3));
     }
 
+    public static void webProxyStart(int streamId, String host, String capability, int instanceNum) {
+        AndroidUtilities.runOnUIThread(() -> WebProxyController.start(instanceNum, streamId, host, capability));
+    }
+
+    public static void webProxyWrite(int instanceNum, int streamId, byte[] data) {
+        WebProxyController.writeData(instanceNum, streamId, data);
+    }
+
+    public static void webProxyCloseStream(int instanceNum, int streamId) {
+        AndroidUtilities.runOnUIThread(() -> WebProxyController.closeStream(instanceNum, streamId));
+    }
+
+    public static void webProxyStop(int instanceNum) {
+        AndroidUtilities.runOnUIThread(() -> WebProxyController.stop());
+    }
+
     public static void getHostByName(String hostName, long address) {
         AndroidUtilities.runOnUIThread(() -> {
             ResolvedDomain resolvedDomain = dnsCache.get(hostName);
@@ -1003,6 +1021,9 @@ public class ConnectionsManager extends BaseController {
     public static native void native_receivedIntegrityCheckClassic(int currentAccount, int requestToken, String nonce, String token);
     public static native void native_receivedCaptchaResult(int currentAccount, int[] requestTokens, String token);
     public static native boolean native_isGoodPrime(byte[] prime, int g);
+    public static native void native_webProxyConnected(int currentAccount, int streamId);
+    public static native void native_webProxyDeliver(int currentAccount, int streamId, byte[] data);
+    public static native void native_webProxyFail(int currentAccount, int streamId);
 
 
     public static boolean testNativeTlScheme(NativeByteBuffer buffer, INativeTlTest test) {
