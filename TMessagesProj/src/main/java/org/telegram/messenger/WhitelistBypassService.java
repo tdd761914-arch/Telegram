@@ -92,7 +92,12 @@ public class WhitelistBypassService extends Service {
         stopRequested = false;
         relayThread = new Thread(() -> {
             try {
-                File relayBinary = new File(getApplicationInfo().nativeLibraryDir, "libwhitelist_relay.so");
+                String relayMode = WhitelistBypassManager.getRelayMode();
+                // Bale Meet links are handled by the separate whitelist-bypass-iran
+                // library (same stdio protocol, different CLI flags).
+                boolean iranLibrary = relayMode.startsWith("bale");
+                File relayBinary = new File(getApplicationInfo().nativeLibraryDir,
+                        iranLibrary ? "libwhitelist_relay_iran.so" : "libwhitelist_relay.so");
                 if (!relayBinary.isFile()) {
                     throw new IllegalStateException(getString(R.string.WhitelistBypassUnsupportedAbi));
                 }
@@ -105,11 +110,13 @@ public class WhitelistBypassService extends Service {
                 List<String> command = new ArrayList<>();
                 command.add(relayBinary.getAbsolutePath());
                 command.add("--mode");
-                command.add(WhitelistBypassManager.getRelayMode());
-                command.add("--ws-port");
-                command.add("9001");
-                command.add("--socks-host");
-                command.add(WhitelistBypassManager.INTERNAL_HOST);
+                command.add(relayMode);
+                if (!iranLibrary) {
+                    command.add("--ws-port");
+                    command.add("9001");
+                    command.add("--socks-host");
+                    command.add(WhitelistBypassManager.INTERNAL_HOST);
+                }
                 command.add("--socks-port");
                 command.add(String.valueOf(socksPort));
                 command.add("--socks-user");

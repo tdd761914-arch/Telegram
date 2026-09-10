@@ -468,6 +468,9 @@ public final class WhitelistBypassManager {
 
     private static String detectPlatform(String value) {
         String link = value == null ? "" : value.trim().toLowerCase(Locale.US);
+        if (link.contains("meet.bale.ai") || link.contains("bale.ai")) {
+            return "bale";
+        }
         if (link.startsWith("dion://") || link.contains("dion.vc/event/")) {
             return "dion";
         }
