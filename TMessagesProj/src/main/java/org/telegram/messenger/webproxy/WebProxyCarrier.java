@@ -197,7 +197,7 @@ public class WebProxyCarrier {
                 }
             });
             try {
-                WebViewCompat.addDocumentStartJavaScript(wv, BridgeScript.SCRIPT, Collections.singletonList("https://" + host));
+                WebViewCompat.addDocumentStartJavaScript(wv, BridgeScript.SCRIPT, Collections.singleton("https://" + host));
             } catch (Throwable t) {
                 FileLog.e(t);
             }

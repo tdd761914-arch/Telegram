@@ -331,8 +331,8 @@ public final class ProxyListImporter {
                 return;
             }
             case "wbypass": {
-                String link = firstString(object, "wbstream", "room", "room_id", "telemost", "dion", "join");
-                importBypassLink(link, result);
+                String bypassLink = firstString(object, "wbstream", "room", "room_id", "telemost", "dion", "join");
+                importBypassLink(bypassLink, result);
                 return;
             }
             default: {

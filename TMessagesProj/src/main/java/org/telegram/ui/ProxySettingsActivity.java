@@ -230,7 +230,7 @@ public class ProxySettingsActivity extends BaseFragment {
                     } else if (currentType == TYPE_WEB) {
                         String webSecret = WebProxyController.buildWebProxySecret(inputFields[FIELD_SECRET].getText().toString());
                         if (webSecret == null) {
-                            BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.UseProxySecretError)).show();
+                            BulletinFactory.of(ProxySettingsActivity.this).createErrorBulletin(LocaleController.getString(R.string.UseProxySecretError)).show();
                             return;
                         }
                         currentProxyInfo.username = "";

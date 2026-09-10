@@ -242,7 +242,6 @@ public class WebProxyController implements WebProxyCarrier.Callbacks {
             old.close();
         }
         registeredStreams.clear();
-        streamKeys.clear();
         host = null;
         capability = null;
         retryDelay = RETRY_MIN_TIMEOUT / 2;
