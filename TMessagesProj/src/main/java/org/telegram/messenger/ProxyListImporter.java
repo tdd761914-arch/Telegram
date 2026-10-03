@@ -3,6 +3,7 @@
  *
  * Accepts JSON (from a file or from a URL) containing proxy entries of
  * mixed formats:
+ *  - Official WEB proxies (explicit type or webproxy link)
  *  - MTProto proxies
  *  - SOCKS5 proxies
  *  - Whitelist Bypass links (wbstream://, dion://, telemost, vk, https)
@@ -24,6 +25,7 @@ import android.text.TextUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+import org.telegram.utils.proxy.ProxySettings;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -288,6 +290,15 @@ public final class ProxyListImporter {
             }
         }
         switch (type) {
+            case "web": {
+                ProxySettings settings = ProxySettings.builder()
+                        .setType(ProxySettings.Type.WEB)
+                        .setAddress(firstString(object, "server", "host", "address", "addr", "ip", "hostname"))
+                        .setSecret(firstString(object, "secret", "key", "password", "pass"))
+                        .build();
+                addProxyEntry(settings, result);
+                return;
+            }
             case "mtproto": {
                 String server = firstString(object, "server", "host", "address", "addr", "ip", "hostname");
                 String secret = firstString(object, "secret", "password", "pass");
@@ -325,7 +336,9 @@ public final class ProxyListImporter {
     private static void importLink(String raw, Result result) {
         String link = raw.trim();
         String lower = link.toLowerCase(Locale.US);
-        if (lower.contains("t.me/proxy") || lower.startsWith("tg://proxy")) {
+        if (lower.contains("/webproxy") || lower.startsWith("tg:webproxy")) {
+            addProxyEntry(ProxySettings.fromUri(Uri.parse(link)), result);
+        } else if (lower.contains("t.me/proxy") || lower.startsWith("tg://proxy")) {
             Uri uri = Uri.parse(link);
             String server = uri.getQueryParameter("server");
             int port = parsePort(uri.getQueryParameter("port"), 443);
@@ -410,7 +423,17 @@ public final class ProxyListImporter {
             result.proxiesInvalid++;
             return;
         }
-        SharedConfig.ProxyInfo candidate = new SharedConfig.ProxyInfo(server, port, user, pass, secret);
+        addProxyEntry(ProxySettings.builder()
+                .setType(TextUtils.isEmpty(secret) ? ProxySettings.Type.SOCKS5 : ProxySettings.Type.MTPROTO)
+                .setAddress(server).setPort(port).setUser(user).setPassword(pass).setSecret(secret).build(), result);
+    }
+
+    private static void addProxyEntry(ProxySettings settings, Result result) {
+        if (settings == null || !settings.isValid()) {
+            result.proxiesInvalid++;
+            return;
+        }
+        SharedConfig.ProxyInfo candidate = new SharedConfig.ProxyInfo(settings);
         SharedConfig.ProxyInfo existing = SharedConfig.addProxy(candidate);
         if (existing == candidate) {
             result.proxiesAdded++;
@@ -424,6 +447,7 @@ public final class ProxyListImporter {
     private static boolean looksLikeLink(String value) {
         String lower = value.toLowerCase(Locale.US);
         return lower.startsWith("tg://")
+                || lower.startsWith("tg:webproxy")
                 || lower.startsWith("wbstream://")
                 || lower.startsWith("dion://")
                 || lower.startsWith("http://")
@@ -438,6 +462,10 @@ public final class ProxyListImporter {
         }
         String lower = value.trim().toLowerCase(Locale.US).replace("-", "").replace("_", "");
         switch (lower) {
+            case "web":
+            case "webproxy":
+            case "webproxies":
+                return "web";
             case "mtproto":
             case "mtproxy":
             case "mt":

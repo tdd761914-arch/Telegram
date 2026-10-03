@@ -13,6 +13,7 @@ import android.text.TextUtils;
 
 import org.json.JSONObject;
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.utils.proxy.ProxySettings;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -53,6 +54,7 @@ public final class WhitelistBypassManager {
     private static final String KEY_PREVIOUS_USER = "previous_proxy_user";
     private static final String KEY_PREVIOUS_PASSWORD = "previous_proxy_password";
     private static final String KEY_PREVIOUS_SECRET = "previous_proxy_secret";
+    private static final String KEY_PREVIOUS_TYPE = "previous_proxy_type";
 
     public static final String MODE_VIDEO = "video";
     public static final String MODE_DC = "dc";
@@ -351,25 +353,18 @@ public final class WhitelistBypassManager {
         SharedConfig.loadProxyList();
         removeInternalProxies();
 
-        SharedConfig.ProxyInfo proxy = SharedConfig.addProxy(new SharedConfig.ProxyInfo(
-                INTERNAL_HOST,
-                port,
-                "",
-                "",
-                ""
-        ));
+        ProxySettings settings = ProxySettings.builder()
+                .setType(ProxySettings.Type.SOCKS5)
+                .setAddress(INTERNAL_HOST).setPort(port).build();
+        SharedConfig.ProxyInfo proxy = SharedConfig.addProxy(new SharedConfig.ProxyInfo(settings));
         SharedConfig.currentProxy = proxy;
-        MessagesController.getGlobalMainSettings().edit()
-                .putString("proxy_ip", proxy.address)
-                .putString("proxy_pass", proxy.password)
-                .putString("proxy_user", proxy.username)
-                .putInt("proxy_port", proxy.port)
-                .putString("proxy_secret", "")
-                .putBoolean("proxy_enabled", true)
+        SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings().edit();
+        settings.toSharedPreferences(editor);
+        editor.putBoolean("proxy_enabled", true)
                 .putBoolean("proxy_enabled_calls", false)
                 .commit();
         preferences().edit().putInt(KEY_INTERNAL_PORT, port).commit();
-        ConnectionsManager.setProxySettings(true, proxy.address, proxy.port, proxy.username, proxy.password, "");
+        ConnectionsManager.setProxySettings(true, settings);
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.proxySettingsChanged);
         return WhitelistWebViewProxy.setProxy(port);
     }
@@ -392,31 +387,33 @@ public final class WhitelistBypassManager {
         String password = prefs.getString(KEY_PREVIOUS_PASSWORD, "");
         String secret = prefs.getString(KEY_PREVIOUS_SECRET, "");
 
+        ProxySettings settings = ProxySettings.builder()
+                .setType(ProxySettings.intToType(prefs.getInt(KEY_PREVIOUS_TYPE,
+                        ProxySettings.typeToInt(TextUtils.isEmpty(secret)
+                                ? ProxySettings.Type.SOCKS5 : ProxySettings.Type.MTPROTO))))
+                .setAddress(address).setPort(port).setUser(user).setPassword(password).setSecret(secret).build();
+
         SharedConfig.ProxyInfo previous = null;
         if (!TextUtils.isEmpty(address)) {
             for (SharedConfig.ProxyInfo info : SharedConfig.proxyList) {
-                if (sameProxy(info, address, port, user, password, secret)) {
+                if (info.settings.equals(settings)) {
                     previous = info;
                     break;
                 }
             }
             if (previous == null) {
-                previous = SharedConfig.addProxy(new SharedConfig.ProxyInfo(address, port, user, password, secret));
+                previous = SharedConfig.addProxy(new SharedConfig.ProxyInfo(settings));
             }
         }
         SharedConfig.currentProxy = previous;
         SharedConfig.saveProxyList();
 
-        MessagesController.getGlobalMainSettings().edit()
-                .putString("proxy_ip", address)
-                .putString("proxy_pass", password)
-                .putString("proxy_user", user)
-                .putInt("proxy_port", port)
-                .putString("proxy_secret", secret)
-                .putBoolean("proxy_enabled", enabled && previous != null)
+        SharedPreferences.Editor editor = MessagesController.getGlobalMainSettings().edit();
+        settings.toSharedPreferences(editor);
+        editor.putBoolean("proxy_enabled", enabled && previous != null)
                 .putBoolean("proxy_enabled_calls", calls && previous != null)
                 .commit();
-        ConnectionsManager.setProxySettings(enabled && previous != null, address, port, user, password, secret);
+        ConnectionsManager.setProxySettings(enabled && previous != null, settings);
         prefs.edit()
                 .putBoolean(KEY_SNAPSHOT_VALID, false)
                 .remove(KEY_INTERNAL_PORT)
@@ -436,6 +433,7 @@ public final class WhitelistBypassManager {
                 .putString(KEY_PREVIOUS_USER, main.getString("proxy_user", ""))
                 .putString(KEY_PREVIOUS_PASSWORD, main.getString("proxy_pass", ""))
                 .putString(KEY_PREVIOUS_SECRET, main.getString("proxy_secret", ""))
+                .putInt(KEY_PREVIOUS_TYPE, ProxySettings.typeToInt(ProxySettings.fromSharedPreferences(main).getType()))
                 .commit();
     }
 
@@ -446,11 +444,12 @@ public final class WhitelistBypassManager {
         }
         boolean changed = false;
         for (SharedConfig.ProxyInfo info : new ArrayList<>(SharedConfig.proxyList)) {
-            if (INTERNAL_HOST.equals(info.address)
-                    && info.port == internalPort
-                    && TextUtils.isEmpty(info.username)
-                    && TextUtils.isEmpty(info.password)
-                    && TextUtils.isEmpty(info.secret)) {
+            if (info.settings.getType() == ProxySettings.Type.SOCKS5
+                    && INTERNAL_HOST.equals(info.settings.getAddress())
+                    && info.settings.getPort() == internalPort
+                    && TextUtils.isEmpty(info.settings.getUser())
+                    && TextUtils.isEmpty(info.settings.getPassword())
+                    && TextUtils.isEmpty(info.settings.getSecret())) {
                 SharedConfig.proxyList.remove(info);
                 if (SharedConfig.currentProxy == info) {
                     SharedConfig.currentProxy = null;
@@ -461,14 +460,6 @@ public final class WhitelistBypassManager {
         if (changed) {
             SharedConfig.saveProxyList();
         }
-    }
-
-    private static boolean sameProxy(SharedConfig.ProxyInfo info, String address, int port, String user, String password, String secret) {
-        return info.port == port
-                && TextUtils.equals(info.address, address)
-                && TextUtils.equals(info.username, user)
-                && TextUtils.equals(info.password, password)
-                && TextUtils.equals(info.secret, secret);
     }
 
     private static String detectPlatform(String value) {
