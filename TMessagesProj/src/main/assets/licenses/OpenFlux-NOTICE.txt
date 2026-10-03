@@ -1,0 +1,11 @@
+YandexDocs Tunnel and MailruDocs Tunnel use the OpenFlux core:
+https://github.com/p1neappleXpress/OpenFlux
+Pinned source: d245db7561e5115f8783066ebfaac46d67257cb3
+License: GNU GPL v3.0 or later (OpenFlux-GPL-3.0.txt).
+
+Integration is based on the gomobile and captcha flow of:
+https://github.com/p1neappleXpress/OpenFluxAndroid
+Credits: p1neappleXpress, meepo161 (OpenFluxClient), damnurmum.
+The complete corresponding core source is pinned as the
+TMessagesProj/jni/third_party/openflux submodule in this repository.
+Build the Android library using scripts/build-openflux.sh before Gradle.

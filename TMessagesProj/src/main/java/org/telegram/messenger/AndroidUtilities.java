@@ -4656,7 +4656,8 @@ public class AndroidUtilities {
         builder.setCustomView(linearLayout);
 
         final TextView headerView = TextHelper.makeTextView(activity, 20, Theme.key_dialogTextBlack, true);
-        headerView.setText(getString(R.string.UseProxyTitle));
+        headerView.setText(getString(settings.getType() == ProxySettings.Type.YANDEX_DOCS ? R.string.UseProxyYandexDocs
+                : settings.getType() == ProxySettings.Type.MAILRU_DOCS ? R.string.UseProxyMailruDocs : R.string.UseProxyTitle));
         linearLayout.addView(headerView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.FILL_HORIZONTAL, 22, 18, 22, 0));
 
         final TableView tableView = new TableView(activity, null);
@@ -4725,7 +4726,7 @@ public class AndroidUtilities {
                     .show();
             }
         }));
-        if (!TextUtils.isEmpty(secret)) {
+        if (settings.getType() == ProxySettings.Type.MTPROTO && !TextUtils.isEmpty(secret)) {
             final TableView.TableRowFullContent tableRow = tableView.addFullRow(getString(R.string.UseProxyTelegramInfo2));
             tableRow.setFilled(true);
             final SpoilersTextView textView = (SpoilersTextView) tableRow.getChildAt(0);

@@ -48,6 +48,7 @@ import org.telegram.messenger.ProxyRotationController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.utils.proxy.ProxySettings;
+import org.telegram.utils.proxy.OpenFluxTransport;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
@@ -172,7 +173,9 @@ public class ProxyListActivity extends BaseFragment implements NotificationCente
         }
 
         public void setProxy(SharedConfig.ProxyInfo proxyInfo) {
-            textView.setText(proxyInfo.settings.getType() == ProxySettings.Type.WEB
+            textView.setText(proxyInfo.settings.getType().isDocsTunnel()
+                    ? getString(proxyInfo.settings.getType() == ProxySettings.Type.YANDEX_DOCS ? R.string.UseProxyYandexDocs : R.string.UseProxyMailruDocs) + " · " + proxyInfo.settings.getAddress()
+                    : proxyInfo.settings.getType() == ProxySettings.Type.WEB
                     ? proxyInfo.settings.getAddress() + " (WEB)"
                     : proxyInfo.settings.getAddress() + ":" + proxyInfo.settings.getPort());
             currentInfo = proxyInfo;
@@ -181,7 +184,10 @@ public class ProxyListActivity extends BaseFragment implements NotificationCente
         public void updateStatus() {
             int colorKey;
             if (SharedConfig.currentProxy == currentInfo && useProxySettings) {
-                if (currentConnectionState == ConnectionsManager.ConnectionStateConnected || currentConnectionState == ConnectionsManager.ConnectionStateUpdating) {
+                if (currentInfo.settings.getType().isDocsTunnel() && OpenFluxTransport.hasFailed(currentInfo.settings)) {
+                    colorKey = Theme.key_text_RedRegular;
+                    valueTextView.setText(getString(R.string.Unavailable));
+                } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnected || currentConnectionState == ConnectionsManager.ConnectionStateUpdating) {
                     colorKey = Theme.key_windowBackgroundWhiteBlueText6;
                     if (currentInfo.ping != 0) {
                         valueTextView.setText(getString(R.string.Connected) + ", " + LocaleController.formatString("Ping", R.string.Ping, currentInfo.ping));
@@ -195,6 +201,9 @@ public class ProxyListActivity extends BaseFragment implements NotificationCente
                     colorKey = Theme.key_windowBackgroundWhiteGrayText2;
                     valueTextView.setText(getString(R.string.Connecting));
                 }
+            } else if (currentInfo.settings.getType().isDocsTunnel()) {
+                valueTextView.setText(getString(R.string.DocsTunnelSelectToConnect));
+                colorKey = Theme.key_windowBackgroundWhiteGrayText2;
             } else {
                 if (currentInfo.checking) {
                     valueTextView.setText(getString(R.string.Checking));

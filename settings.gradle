@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 
 gradle.ext.androidxMediaModulePrefix = 'TMessagesProj_Modules:media3:media-'
 apply from: file("TMessagesProj_Modules/media/core_settings.gradle")
+
+include ':openflux-core'
+project(':openflux-core').projectDir = file('TMessagesProj_Modules/openflux')

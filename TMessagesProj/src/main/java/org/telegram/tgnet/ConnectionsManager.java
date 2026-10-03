@@ -47,6 +47,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.utils.proxy.WebProxyConnectionTester;
 import org.telegram.utils.proxy.WebProxyTransport;
+import org.telegram.utils.proxy.OpenFluxTransport;
 import org.telegram.utils.proxy.ProxySettings;
 import org.telegram.ui.Components.VideoPlayer;
 import org.telegram.ui.LoginActivity;
@@ -634,7 +635,10 @@ public class ConnectionsManager extends BaseController {
         final SharedPreferences preferences = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Activity.MODE_PRIVATE);
         final ProxySettings proxySettings = ProxySettings.fromSharedPreferences(preferences);
         if (preferences.getBoolean("proxy_enabled", false) && proxySettings.isValid()) {
-            if (proxySettings.getType() == ProxySettings.Type.WEB) {
+            if (proxySettings.getType().isDocsTunnel()) {
+                int localPort = OpenFluxTransport.start(proxySettings);
+                native_setProxySettings(currentAccount, "127.0.0.1", localPort != 0 ? localPort : 9, "", "", "");
+            } else if (proxySettings.getType() == ProxySettings.Type.WEB) {
                 int localPort = WebProxyTransport.start(proxySettings.getAddress(), proxySettings.getSecret());
                 native_setProxySettings(currentAccount, "127.0.0.1", localPort != 0 ? localPort : 9, "", "",
                         proxySettings.getSecret());
@@ -735,6 +739,11 @@ public class ConnectionsManager extends BaseController {
     }
 
     public long checkProxy(ProxySettings settings, RequestTimeDelegate requestTimeDelegate) {
+        if (settings != null && settings.getType().isDocsTunnel()) {
+            OpenFluxTransport.checkProxy(settings, requestTimeDelegate, (port, callback) ->
+                    native_checkProxy(currentAccount, "127.0.0.1", port, "", "", "", callback));
+            return 0;
+        }
         if (settings == null || !settings.isValid()) {
             return 0;
         }
@@ -949,6 +958,9 @@ public class ConnectionsManager extends BaseController {
         String password = "";
         String secret = "";
 
+        if (!enabled || settings == null || !settings.getType().isDocsTunnel() || !settings.isValid()) {
+            OpenFluxTransport.stop();
+        }
         if (enabled && settings != null && settings.isValid()) {
             address = settings.getAddress();
             port = settings.getPort();
@@ -956,7 +968,13 @@ public class ConnectionsManager extends BaseController {
             password = settings.getPassword();
             secret = settings.getSecret();
 
-            if (settings.getType() == ProxySettings.Type.WEB) {
+            if (settings.getType().isDocsTunnel()) {
+                WebProxyTransport.stop();
+                int localPort = OpenFluxTransport.start(settings);
+                address = "127.0.0.1";
+                port = localPort != 0 ? localPort : 9;
+                username = password = secret = "";
+            } else if (settings.getType() == ProxySettings.Type.WEB) {
                 int localPort = WebProxyTransport.start(address, secret);
                 address = "127.0.0.1";
                 port = localPort != 0 ? localPort : 9;

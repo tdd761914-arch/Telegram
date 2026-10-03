@@ -54,3 +54,7 @@
 # Use -keep to explicitly keep any other classes shrinking would remove
 #-dontoptimize
 #-dontobfuscate
+
+# gomobile uses JNI to resolve these generated classes and methods.
+-keep class go.** { *; }
+-keep class io.openflux.bridge.** { *; }

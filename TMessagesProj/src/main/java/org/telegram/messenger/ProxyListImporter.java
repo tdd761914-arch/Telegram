@@ -4,6 +4,7 @@
  * Accepts JSON (from a file or from a URL) containing proxy entries of
  * mixed formats:
  *  - Official WEB proxies (explicit type or webproxy link)
+ *  - YandexDocs Tunnel and MailruDocs Tunnel (JSON or tg://proxy?type=...)
  *  - MTProto proxies
  *  - SOCKS5 proxies
  *  - Whitelist Bypass links (wbstream://, dion://, telemost, vk, https)
@@ -190,7 +191,12 @@ public final class ProxyListImporter {
 
         Result result = new Result();
         for (Object entry : entries) {
-            importEntry(entry, result);
+            try {
+                importEntry(entry, result);
+            } catch (RuntimeException ignored) {
+                // A malformed row must not discard the remaining subscription.
+                result.proxiesInvalid++;
+            }
         }
 
         if (result.proxiesAdded > 0) {
@@ -250,7 +256,7 @@ public final class ProxyListImporter {
             return true;
         }
         return !TextUtils.isEmpty(firstString(object, "server", "host", "address", "addr", "ip", "hostname"))
-                || !TextUtils.isEmpty(firstString(object, "room", "room_id", "wbstream", "secret"));
+                || !TextUtils.isEmpty(firstString(object, "room", "room_id", "wbstream", "secret", "document"));
     }
 
     private static void importEntry(Object entry, Result result) {
@@ -270,12 +276,14 @@ public final class ProxyListImporter {
     }
 
     private static void importProxyObject(JSONObject object, Result result) {
-        String link = firstString(object, "link", "url", "creator_link");
+        String type = normalizeType(firstString(object, "type", "kind", "protocol", "proxy_type"));
+        boolean docsTunnel = "yandexdocs".equals(type) || "mailrudocs".equals(type);
+        String link = firstString(object, "link", "creator_link");
+        if (TextUtils.isEmpty(link) && !docsTunnel) link = firstString(object, "url");
         if (!TextUtils.isEmpty(link)) {
             importLink(link, result);
             return;
         }
-        String type = normalizeType(firstString(object, "type", "kind", "protocol", "proxy_type"));
         if (type == null) {
             String room = firstString(object, "room", "room_id", "wbstream", "telemost", "dion");
             if (!TextUtils.isEmpty(room)) {
@@ -290,6 +298,14 @@ public final class ProxyListImporter {
             }
         }
         switch (type) {
+            case "yandexdocs":
+            case "mailrudocs": {
+                addProxyEntry(ProxySettings.builder()
+                        .setType("yandexdocs".equals(type) ? ProxySettings.Type.YANDEX_DOCS : ProxySettings.Type.MAILRU_DOCS)
+                        .setAddress(firstString(object, "server", "host", "address", "document", "url"))
+                        .setSecret(firstString(object, "secret", "key", "password")).build(), result);
+                return;
+            }
             case "web": {
                 ProxySettings settings = ProxySettings.builder()
                         .setType(ProxySettings.Type.WEB)
@@ -336,7 +352,12 @@ public final class ProxyListImporter {
     private static void importLink(String raw, Result result) {
         String link = raw.trim();
         String lower = link.toLowerCase(Locale.US);
-        if (lower.contains("/webproxy") || lower.startsWith("tg:webproxy")) {
+        ProxySettings parsed = ProxySettings.fromUri(Uri.parse(link));
+        if (parsed != null && parsed.getType().isDocsTunnel()) {
+            addProxyEntry(parsed, result);
+        } else if (Uri.parse(link).isHierarchical() && Uri.parse(link).getQueryParameter("type") != null && (lower.startsWith("tg:") || lower.contains("t.me/proxy"))) {
+            result.proxiesInvalid++;
+        } else if (lower.contains("/webproxy") || lower.startsWith("tg:webproxy")) {
             addProxyEntry(ProxySettings.fromUri(Uri.parse(link)), result);
         } else if (lower.contains("t.me/proxy") || lower.startsWith("tg://proxy")) {
             Uri uri = Uri.parse(link);
@@ -448,6 +469,7 @@ public final class ProxyListImporter {
         String lower = value.toLowerCase(Locale.US);
         return lower.startsWith("tg://")
                 || lower.startsWith("tg:webproxy")
+                || lower.startsWith("tg:proxy")
                 || lower.startsWith("wbstream://")
                 || lower.startsWith("dion://")
                 || lower.startsWith("http://")
@@ -460,8 +482,16 @@ public final class ProxyListImporter {
         if (TextUtils.isEmpty(value)) {
             return null;
         }
-        String lower = value.trim().toLowerCase(Locale.US).replace("-", "").replace("_", "");
+        String lower = value.trim().toLowerCase(Locale.US).replace("-", "").replace("_", "").replace(" ", "");
         switch (lower) {
+            case "yandex":
+            case "yandexdocs":
+            case "yandexdocstunnel":
+                return "yandexdocs";
+            case "mailru":
+            case "mailrudocs":
+            case "mailrudocstunnel":
+                return "mailrudocs";
             case "web":
             case "webproxy":
             case "webproxies":

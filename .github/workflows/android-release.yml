@@ -52,6 +52,18 @@ jobs:
             "ndk;27.2.12479018" \
             "cmake;3.10.2.4988404"
 
+      - name: Set up Go for OpenFlux
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: TMessagesProj/jni/third_party/openflux/mobile/go.mod
+          cache-dependency-path: TMessagesProj/jni/third_party/openflux/mobile/go.sum
+
+      - name: Build OpenFlux core
+        run: scripts/build-openflux.sh
+
+      - name: Compile Java before native APK build
+        run: ./gradlew :TMessagesProj:compileAfatReleaseJavaWithJavac --no-daemon --max-workers=2
+
       - name: Build universal release APK
         shell: bash
         run: |

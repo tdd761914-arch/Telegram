@@ -1,0 +1,4 @@
+// Publish the locally built gomobile AAR as a dependency artifact, so the
+// Android library and all application variants receive both classes and JNI.
+configurations.maybeCreate('default')
+artifacts.add('default', file('../../TMessagesProj/libs/openflux.aar'))

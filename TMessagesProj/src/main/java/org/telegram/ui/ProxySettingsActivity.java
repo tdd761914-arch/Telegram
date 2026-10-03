@@ -80,9 +80,6 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.QRCodeBottomSheet;
 import org.telegram.ui.Components.SectionsScrollView;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 
 public class ProxySettingsActivity extends BaseFragment {
@@ -103,7 +100,7 @@ public class ProxySettingsActivity extends BaseFragment {
     private TextSettingsCell shareCell;
     private TextSettingsCell pasteCell;
     private ActionBarMenuItem doneItem;
-    private RadioCell[] typeCell = new RadioCell[3];
+    private RadioCell[] typeCell = new RadioCell[5];
     private ProxySettings.Type currentType;
 
     private ProxySettings pasteProxySettings;
@@ -223,7 +220,7 @@ public class ProxySettingsActivity extends BaseFragment {
                     currentProxyInfo.settings = ProxySettings.builder()
                         .setType(currentType)
                         .setAddress(inputFields[FIELD_IP].getText().toString())
-                        .setPort(currentType == ProxySettings.Type.WEB ? 0 : Utilities.parseInt(inputFields[FIELD_PORT].getText().toString()))
+                        .setPort((currentType == ProxySettings.Type.WEB || currentType.isDocsTunnel()) ? 0 : Utilities.parseInt(inputFields[FIELD_PORT].getText().toString()))
                         .setUser(currentType == ProxySettings.Type.SOCKS5 ? inputFields[FIELD_USER].getText().toString() : "")
                         .setPassword(currentType == ProxySettings.Type.SOCKS5 ? inputFields[FIELD_PASSWORD].getText().toString() : "")
                         .setSecret(currentType != ProxySettings.Type.SOCKS5 ? inputFields[FIELD_SECRET].getText().toString() : "")
@@ -287,7 +284,7 @@ public class ProxySettingsActivity extends BaseFragment {
 
         final View.OnClickListener typeCellClickListener = view -> setProxyType(ProxySettings.intToType((Integer) view.getTag()), true);
 
-        for (int a = 0; a < 3; a++) {
+        for (int a = 0; a < typeCell.length; a++) {
             ProxySettings.Type t = ProxySettings.intToType(a);
 
             typeCell[a] = new RadioCell(context);
@@ -297,8 +294,10 @@ public class ProxySettingsActivity extends BaseFragment {
                 typeCell[a].setText(LocaleController.getString(R.string.UseProxySocks5), t == currentType, true);
             } else if (a == 1) {
                 typeCell[a].setText(LocaleController.getString(R.string.UseProxyTelegram), t == currentType, true);
+            } else if (a == 2) {
+                typeCell[a].setText(LocaleController.getString(R.string.UseProxyWeb), t == currentType, true);
             } else {
-                typeCell[a].setText(LocaleController.getString(R.string.UseProxyWeb), t == currentType, false);
+                typeCell[a].setText(LocaleController.getString(a == 3 ? R.string.UseProxyYandexDocs : R.string.UseProxyMailruDocs), t == currentType, a == 3);
             }
             linearLayout2.addView(typeCell[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
             typeCell[a].setOnClickListener(typeCellClickListener);
@@ -513,11 +512,8 @@ public class ProxySettingsActivity extends BaseFragment {
                     }
 
                     if (!TextUtils.isEmpty(field)) {
-                        try {
-                            inputFields[i].setText(URLDecoder.decode(field, "UTF-8"));
-                        } catch (UnsupportedEncodingException e) {
-                            inputFields[i].setText(field);
-                        }
+                        // ProxySettings.fromUri has already decoded query parameters.
+                        inputFields[i].setText(field);
                     } else {
                         inputFields[i].setText(null);
                     }
@@ -529,7 +525,7 @@ public class ProxySettingsActivity extends BaseFragment {
                         if (i == FIELD_IP) {
                             continue;
                         }
-                        if (pasteType == ProxySettings.Type.WEB) {
+                        if (pasteType == ProxySettings.Type.WEB || pasteType.isDocsTunnel()) {
                             if (i == FIELD_SECRET) {
                                 continue;
                             }
@@ -561,51 +557,14 @@ public class ProxySettingsActivity extends BaseFragment {
         shareCell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
         linearLayout2.addView(shareCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         shareCell.setOnClickListener(v -> {
-            StringBuilder params = new StringBuilder();
-            String address = inputFields[FIELD_IP].getText().toString();
-            String password = inputFields[FIELD_PASSWORD].getText().toString();
-            String user = inputFields[FIELD_USER].getText().toString();
-            String port = inputFields[FIELD_PORT].getText().toString();
-            String secret = inputFields[FIELD_SECRET].getText().toString();
-            String url;
-            try {
-                if (!TextUtils.isEmpty(address)) {
-                    params.append("server=").append(URLEncoder.encode(address, "UTF-8"));
-                }
-                if (!TextUtils.isEmpty(port)) {
-                    if (params.length() != 0) {
-                        params.append("&");
-                    }
-                    params.append("port=").append(URLEncoder.encode(port, "UTF-8"));
-                }
-                if (currentType == ProxySettings.Type.MTPROTO) {
-                    url = "https://t.me/proxy?";
-                    if (params.length() != 0) {
-                        params.append("&");
-                    }
-                    params.append("secret=").append(URLEncoder.encode(secret, "UTF-8"));
-                } else {
-                    url = "https://t.me/socks?";
-                    if (!TextUtils.isEmpty(user)) {
-                        if (params.length() != 0) {
-                            params.append("&");
-                        }
-                        params.append("user=").append(URLEncoder.encode(user, "UTF-8"));
-                    }
-                    if (!TextUtils.isEmpty(password)) {
-                        if (params.length() != 0) {
-                            params.append("&");
-                        }
-                        params.append("pass=").append(URLEncoder.encode(password, "UTF-8"));
-                    }
-                }
-            } catch (Exception ignore) {
-                return;
-            }
-            if (params.length() == 0) {
-                return;
-            }
-            String link = url + params.toString();
+            ProxySettings settings = ProxySettings.builder().setType(currentType)
+                    .setAddress(inputFields[FIELD_IP].getText().toString())
+                    .setPort(Utilities.parseInt(inputFields[FIELD_PORT].getText().toString()))
+                    .setUser(inputFields[FIELD_USER].getText().toString())
+                    .setPassword(inputFields[FIELD_PASSWORD].getText().toString())
+                    .setSecret(inputFields[FIELD_SECRET].getText().toString()).build();
+            if (!settings.isValid()) return;
+            String link = settings.getLink();
             QRCodeBottomSheet alert = new QRCodeBottomSheet(context, LocaleController.getString(R.string.ShareQrCode), link, LocaleController.getString(R.string.QRCodeLinkHelpProxy), true);
             Bitmap icon = SvgHelper.getBitmap(AndroidUtilities.readRes(R.raw.qr_dog), AndroidUtilities.dp(60), AndroidUtilities.dp(60), false);
             alert.setCenterImage(icon);
@@ -716,7 +675,10 @@ public class ProxySettingsActivity extends BaseFragment {
         if (shareCell == null || doneItem == null || inputFields[FIELD_IP] == null || inputFields[FIELD_PORT] == null) {
             return;
         }
-        boolean enabled = currentType == ProxySettings.Type.WEB
+        boolean enabled = currentType != null && currentType.isDocsTunnel()
+                ? ProxySettings.builder().setType(currentType).setAddress(inputFields[FIELD_IP].getText().toString())
+                    .setSecret(inputFields[FIELD_SECRET].getText().toString()).build().isValid()
+                : currentType == ProxySettings.Type.WEB
                 ? !TextUtils.isEmpty(WebProxyTransport.normalizeHost(inputFields[FIELD_IP].getText().toString()))
                     && WebProxyTransport.isValidSecret(inputFields[FIELD_SECRET].getText().toString())
                 : inputFields[FIELD_IP].length() != 0
@@ -874,7 +836,16 @@ public class ProxySettingsActivity extends BaseFragment {
 
                 TransitionManager.beginDelayedTransition(linearLayout2, transitionSet);
             }
-            if (currentType == ProxySettings.Type.SOCKS5) {
+            inputFields[FIELD_IP].setHintText(LocaleController.getString(currentType.isDocsTunnel() ? R.string.DocsTunnelDocument : R.string.UseProxyAddress));
+            if (currentType.isDocsTunnel()) {
+                bottomCells[0].setVisibility(View.GONE);
+                bottomCells[1].setVisibility(View.VISIBLE);
+                bottomCells[1].setText(LocaleController.getString(R.string.DocsTunnelInfo));
+                ((View) inputFields[FIELD_SECRET].getParent()).setVisibility(View.VISIBLE);
+                ((View) inputFields[FIELD_PASSWORD].getParent()).setVisibility(View.GONE);
+                ((View) inputFields[FIELD_USER].getParent()).setVisibility(View.GONE);
+                ((View) inputFields[FIELD_PORT].getParent()).setVisibility(View.GONE);
+            } else if (currentType == ProxySettings.Type.SOCKS5) {
                 bottomCells[0].setVisibility(View.VISIBLE);
                 bottomCells[1].setVisibility(View.GONE);
                 ((View) inputFields[FIELD_SECRET].getParent()).setVisibility(View.GONE);
@@ -903,6 +874,8 @@ public class ProxySettingsActivity extends BaseFragment {
             typeCell[0].setChecked(currentType == ProxySettings.Type.SOCKS5, animated);
             typeCell[1].setChecked(currentType == ProxySettings.Type.MTPROTO, animated);
             typeCell[2].setChecked(currentType == ProxySettings.Type.WEB, animated);
+            typeCell[3].setChecked(currentType == ProxySettings.Type.YANDEX_DOCS, animated);
+            typeCell[4].setChecked(currentType == ProxySettings.Type.MAILRU_DOCS, animated);
             checkShareDone(animated);
         }
     }

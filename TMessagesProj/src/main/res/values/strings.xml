@@ -2697,6 +2697,16 @@
     <string name="UseProxyUsername">Username</string>
     <string name="UseProxySocks5">SOCKS5 Proxy</string>
     <string name="UseProxyTelegram">MTProto Proxy</string>
+    <string name="UseProxyYandexDocs">YandexDocs Tunnel</string>
+    <string name="UseProxyMailruDocs">MailruDocs Tunnel</string>
+    <string name="DocsTunnelDocument">Document URL (https://…)</string>
+    <string name="DocsTunnelInfo">Use the document URL and encryption key configured on your OpenFlux exit node. The key must contain at least 16 characters, or be empty if the node uses no encryption. Only RedoGram traffic uses this tunnel.</string>
+    <string name="DocsTunnelSelectToConnect">Select to connect</string>
+    <string name="DocsTunnelCheck">Complete the document service check</string>
+    <string name="DocsTunnelCheckDone">Check completed</string>
+    <string name="DocsTunnelCheckRetry">Complete the check in the page, then try again.</string>
+    <string name="DocsTunnelStartFailed">Could not start the document tunnel. Check the document URL and key, then reconnect.</string>
+    <string name="DocsTunnelWebViewRequired">Update Android System WebView to complete this check.</string>
     <string name="UseProxyWeb">WEB Proxy</string>
     <string name="UseProxyTelegramError">The proxy you are using is not configured correctly and will be disabled. Please find another one.</string>
     <string name="UseProxySponsor">Proxy sponsor</string>

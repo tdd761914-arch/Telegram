@@ -27,7 +27,13 @@ public final class ProxySettings {
     public enum Type {
         SOCKS5,
         MTPROTO,
-        WEB
+        WEB,
+        YANDEX_DOCS,
+        MAILRU_DOCS;
+
+        public boolean isDocsTunnel() {
+            return this == YANDEX_DOCS || this == MAILRU_DOCS;
+        }
     }
 
     private final @NonNull Type type;
@@ -41,7 +47,12 @@ public final class ProxySettings {
         this.type = builder.type;
         this.address = builder.address;
 
-        if (type == Type.WEB) {
+        if (type.isDocsTunnel()) {
+            secret = builder.secret;
+            port = 0;
+            user = "";
+            password = "";
+        } else if (type == Type.WEB) {
             secret = builder.secret;
             port = 0;
             user = "";
@@ -94,12 +105,23 @@ public final class ProxySettings {
         if (TextUtils.isEmpty(address)) {
             return false;
         }
+        if (type.isDocsTunnel()) {
+            Uri uri = Uri.parse(address);
+            return "https".equalsIgnoreCase(uri.getScheme()) && !TextUtils.isEmpty(uri.getHost())
+                    && (secret.isEmpty() || secret.length() >= 16);
+        }
         return type == Type.WEB
                 ? isValidWebAddress(address) && isValidWebProxySecret(secret)
                 : port > 0;
     }
 
     public String getLink() {
+        if (type.isDocsTunnel()) {
+            return new Uri.Builder().scheme("tg").authority("proxy")
+                    .appendQueryParameter("type", type == Type.YANDEX_DOCS ? "yandexdocs" : "mailrudocs")
+                    .appendQueryParameter("server", address)
+                    .appendQueryParameter("secret", secret).build().toString();
+        }
         StringBuilder url;
         switch (type) {
             case MTPROTO:
@@ -206,6 +228,13 @@ public final class ProxySettings {
                 editor.remove("proxy_pass");
                 editor.remove("proxy_user");
                 break;
+            case YANDEX_DOCS:
+            case MAILRU_DOCS:
+                editor.putString("proxy_secret", secret);
+                editor.remove("proxy_port");
+                editor.remove("proxy_pass");
+                editor.remove("proxy_user");
+                break;
             case WEB:
                 editor.putString("proxy_secret", secret);
                 editor.remove("proxy_port");
@@ -276,11 +305,18 @@ public final class ProxySettings {
                 return null;
             }
 
+            String transportType = uri.getQueryParameter("type");
+            if (transportType != null) {
+                if (type != Type.MTPROTO) return null;
+                if ("yandexdocs".equalsIgnoreCase(transportType)) type = Type.YANDEX_DOCS;
+                else if ("mailrudocs".equalsIgnoreCase(transportType)) type = Type.MAILRU_DOCS;
+                else return null;
+            }
             String address = uri.getQueryParameter("server");
             if (address == null) {
                 address = uri.getQueryParameter("host");
             }
-            if (type != Type.WEB && AndroidUtilities.checkHostForPunycode(address)) {
+            if (type != Type.WEB && !type.isDocsTunnel() && AndroidUtilities.checkHostForPunycode(address)) {
                 address = IDN.toASCII(address, IDN.ALLOW_UNASSIGNED);
             }
 
@@ -313,7 +349,7 @@ public final class ProxySettings {
                     .setPassword(uri.getQueryParameter("pass"))
                     .setSecret(secret)
                     .build();
-            return type != Type.WEB || settings.isValid() ? settings : null;
+            return (type != Type.WEB && !type.isDocsTunnel()) || settings.isValid() ? settings : null;
         } catch (Exception ignore) {
             return null;
         }
@@ -362,6 +398,9 @@ public final class ProxySettings {
         }
 
         public ProxySettings build() {
+            if (type.isDocsTunnel()) {
+                address = address.trim();
+            }
             if (type == Type.WEB) {
                 address = normalizeWebAddress(address);
                 if (hasWebProxyPath(address)) {
@@ -523,6 +562,10 @@ public final class ProxySettings {
                 return 1;
             case WEB:
                 return 2;
+            case YANDEX_DOCS:
+                return 3;
+            case MAILRU_DOCS:
+                return 4;
         }
         return 0;
     }
@@ -535,6 +578,10 @@ public final class ProxySettings {
                 return Type.MTPROTO;
             case 2:
                 return Type.WEB;
+            case 3:
+                return Type.YANDEX_DOCS;
+            case 4:
+                return Type.MAILRU_DOCS;
         }
         return Type.SOCKS5;
     }
