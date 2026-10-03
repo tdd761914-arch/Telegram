@@ -39,7 +39,7 @@ public final class OpenFluxTransport {
         if (settings == null || !settings.getType().isDocsTunnel() || !settings.isValid()) {
             return 0;
         }
-        if (current != null && current.settings.equals(settings) && !current.stopped) {
+        if (current != null && current.settings.equals(settings) && !current.stopped && !current.failed) {
             return current.port;
         }
         stop();

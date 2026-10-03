@@ -1,6 +1,7 @@
 package org.telegram.utils.proxy;
 
 import android.net.Uri;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -130,6 +131,7 @@ final class OpenFluxCaptcha {
             });
         });
         view.getLayoutParams().height = Math.min(AndroidUtilities.dp(480), AndroidUtilities.displaySize.y / 2);
+        view.requestLayout();
         if (proxy == null || proxy.isEmpty()) {
             view.loadUrl(url);
         } else if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
@@ -151,6 +153,9 @@ final class OpenFluxCaptcha {
         dialog = null;
         if (web != null) {
             web.stopLoading();
+            if (web.getParent() instanceof ViewGroup) {
+                ((ViewGroup) web.getParent()).removeView(web);
+            }
             web.destroy();
             web = null;
         }
