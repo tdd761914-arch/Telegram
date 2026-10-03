@@ -3,7 +3,6 @@
  *
  * Accepts JSON (from a file or from a URL) containing proxy entries of
  * mixed formats:
- *  - WEB proxies (RedoGram WebView proxy)
  *  - MTProto proxies
  *  - SOCKS5 proxies
  *  - Whitelist Bypass links (wbstream://, dion://, telemost, vk, https)
@@ -25,8 +24,6 @@ import android.text.TextUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
-
-import org.telegram.messenger.webproxy.WebProxyController;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -285,28 +282,12 @@ public final class ProxyListImporter {
             }
             String secret = firstString(object, "secret");
             if (!TextUtils.isEmpty(secret)) {
-                type = WebProxyController.isWebProxySecret(secret) ? "web" : "mtproto";
+                type = "mtproto";
             } else {
                 type = "socks";
             }
         }
         switch (type) {
-            case "web": {
-                String server = firstString(object, "server", "host", "address", "addr", "ip", "hostname");
-                String key = firstString(object, "secret", "key", "password", "pass");
-                int port = optInt(object, "port", 443);
-                if (TextUtils.isEmpty(server) || TextUtils.isEmpty(key) || port <= 0) {
-                    result.proxiesInvalid++;
-                    return;
-                }
-                String encoded = WebProxyController.buildWebProxySecret(key);
-                if (encoded == null) {
-                    result.proxiesInvalid++;
-                    return;
-                }
-                addProxyEntry(server, port, "", "", encoded, result);
-                return;
-            }
             case "mtproto": {
                 String server = firstString(object, "server", "host", "address", "addr", "ip", "hostname");
                 String secret = firstString(object, "secret", "password", "pass");
@@ -457,11 +438,6 @@ public final class ProxyListImporter {
         }
         String lower = value.trim().toLowerCase(Locale.US).replace("-", "").replace("_", "");
         switch (lower) {
-            case "web":
-            case "webproxy":
-            case "webproxies":
-            case "redogram":
-                return "web";
             case "mtproto":
             case "mtproxy":
             case "mt":
@@ -481,7 +457,7 @@ public final class ProxyListImporter {
             case "link":
                 return "wbypass";
             default:
-                return null;
+                return lower;
         }
     }
 
