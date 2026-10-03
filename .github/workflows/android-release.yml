@@ -62,7 +62,7 @@ jobs:
         run: scripts/build-openflux.sh
 
       - name: Compile Java before native APK build
-        run: ./gradlew :TMessagesProj:compileAfatReleaseJavaWithJavac --no-daemon --max-workers=2
+        run: ./gradlew :TMessagesProj:compileReleaseJavaWithJavac --no-daemon --max-workers=2
 
       - name: Build universal release APK
         shell: bash
